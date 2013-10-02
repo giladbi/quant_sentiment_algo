@@ -1,0 +1,5 @@
+{
+	"rss_feeds" : [
+		"http://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
+	]
+}
