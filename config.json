@@ -1,5 +1,7 @@
 {
 	"rss_feeds" : [
-		"http://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
-	]
+		"http://rss.cnn.com/rss/money_markets.rss",
+		"http://feeds.marketwatch.com/marketwatch/stockstowatch?format=xml"
+	], 
+	"output_folder": "/rss_output"
 }
