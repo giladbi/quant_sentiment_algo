@@ -1,37 +1,135 @@
 from feedparser import feedparser
-import urllib2, os, datetime
+from db import Database
+import urllib2, os, datetime, time
+from HTMLParser import HTMLParser
+import htmlentitydefs
 
 """ 
 This script aggregates news articles from a collection of rss feeds
 """
 
-today = datetime.date.today();
 rssFeeds =  [
-		"http://rss.cnn.com/rss/money_markets.rss",
-		"http://feeds.marketwatch.com/marketwatch/stockstowatch?format=xml"
+		# "http://rss.cnn.com/rss/money_markets.rss",
+		"http://feeds.marketwatch.com/marketwatch/stockstowatch?format=xml",
+		"http://feeds.reuters.com/news/wealth",
+		"http://feeds.reuters.com/reuters/businessNews",
+		"http://feeds.reuters.com/reuters/companyNews",
+		"http://finance.yahoo.com/news/category-earnings/rss",
+		"http://finance.yahoo.com/news/category-ipos/rss",
+		"http://finance.yahoo.com/news/category-m-a/rss",
+		"http://finance.yahoo.com/news/category-stocks/rss",
+		"http://www.cnbc.com/id/100003241/device/rss/rss.html",
+		"http://www.cnbc.com/id/15839135/device/rss/rss.xml",
+		"http://www.cnbc.com/id/15839069/device/rss/rss.html"
 	]
-todayDir = today.strftime("%Y/%m/%d/")
-outputDir = "rss_output/"+todayDir
-counter = 0
+
+# dev path
+#relativePath = os.getcwd() + "/rss_output/"
+
+# production value
+relativePath = os.getcwd() + "/labs/quantAlgo/rss_output/"
+
+
+numInserted = 0
+numError = 0
+numFound = 0
+
+
+class HTMLTextExtractor(HTMLParser):
+    def __init__(self):
+        HTMLParser.__init__(self)
+        self.result = [ ]
+
+    def handle_data(self, d):
+        self.result.append(d)
+
+    def handle_charref(self, number):
+        codepoint = int(number[1:], 16) if number[0] in (u'x', u'X') else int(number)
+        self.result.append(unichr(codepoint))
+
+    def handle_entityref(self, name):
+        codepoint = htmlentitydefs.name2codepoint[name]
+        self.result.append(unichr(codepoint))
+
+    def get_text(self):
+        return u''.join(self.result)
+
+def html_to_text(html):
+    s = HTMLTextExtractor()
+    s.feed(html)
+    return s.get_text()
+
+def getPublishTime(article):
+	"""
+	MySQL date format: YYYY-MM-DD HH:MM:SS
+	"""
+	pubDate = article['published_parsed'];
+	dt = datetime.datetime.fromtimestamp(time.mktime(pubDate))
+	path = dt.strftime("%Y-%m-%d %H:%M:%S")
+	return path
+
+def buildArticlePath(article):
+	pubDate = article['published_parsed'];
+	dt = datetime.datetime.fromtimestamp(time.mktime(pubDate))
+	path = dt.strftime("%Y/%m/%d/")
+	return path
+
+def getArticleSummary(article):
+	"""
+	Strips out html tags from the summaries, returns plaintext
+	"""
+	return cleanUpText(html_to_text(article['summary_detail']['value']))
+
+def getArticleSource(article):
+	return cleanUpText(article['summary_detail']['base'])
+
+def cleanUpText(text):
+	"""
+	Function handles encoding of xml file
+
+	Xml usually based in as UTF-8. We want to return 
+	Ascii version for python
+	"""
+	return text.encode('ascii','ignore')
+
+db = Database()
+db.connect()
 for feed in rssFeeds:
 	rss = feedparser.parse(feed) #RSS object
 
-	#print("\nFound a total of "+str(len(rss['entries']))+" articles from rss feed: "+str(feed))
+	numFound += len(rss['entries'])
+	print("Found a total of "+str(numFound)+" articles from rss feed: "+str(feed))
 	for entry in rss['entries']:
+		outputDir = relativePath + buildArticlePath(entry)
+		
 		if not os.path.exists(outputDir):
 			os.makedirs(outputDir)
 		# Download the article
 		link = entry['link']
+		originalTitle = cleanUpText(entry['title'])
 		
-		formattedTitle = entry['title'].replace(' ','_').encode('utf8')
+		formattedTitle = originalTitle.replace(' ','_').replace('/','-')
+		
+		relFilePath = buildArticlePath(entry) + formattedTitle+".html"
 		filePath = outputDir+formattedTitle+".html"
+
 		if not os.path.exists(filePath):	
-			#print("Downloading: "+link)
-			u = urllib2.urlopen(link)
+			print("Downloading: "+link)
+			try:
+				u = urllib2.urlopen(link)
+			except urllib2.HTTPError as e:
+				# Handle error if link fails to load (404)
+				numError += 1
+				print("[ERROR] failed to download url: "+link)
+				print(e)
+				break
 			localFile = open(filePath, 'w')
 			localFile.write(u.read())
 			localFile.close()
-			counter += 1
 
+			db.insertArticleEntry(originalTitle, getArticleSource(entry),getPublishTime(entry),getArticleSummary(entry),relFilePath)
+			numInserted += 1
+
+db.updateLog(numInserted, numError, numFound)
 timestamp = datetime.datetime.now().strftime("%x %X")
-print("[{0}] Successfully downloaded {1} articles").format(timestamp,counter)
+print("[{0}] JOB DONE! Downloaded {1} articles.").format(timestamp,numInserted)
