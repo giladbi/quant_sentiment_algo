@@ -9,7 +9,7 @@ This script aggregates news articles from a collection of rss feeds
 """
 
 rssFeeds =  [
-		# "http://rss.cnn.com/rss/money_markets.rss",
+		"http://rss.cnn.com/rss/money_markets.rss",
 		"http://feeds.marketwatch.com/marketwatch/stockstowatch?format=xml",
 		"http://feeds.reuters.com/news/wealth",
 		"http://feeds.reuters.com/reuters/businessNews",
@@ -36,6 +36,9 @@ numFound = 0
 
 
 class HTMLTextExtractor(HTMLParser):
+	"""
+	Special class for sanitizing HTML input
+	"""
     def __init__(self):
         HTMLParser.__init__(self)
         self.result = [ ]
@@ -78,7 +81,7 @@ def getArticleSummary(article):
 	"""
 	Strips out html tags from the summaries, returns plaintext
 	"""
-	return cleanUpText(html_to_text(article['summary_detail']['value']))
+	return cleanUpText(html_to_text(article['summary_detail']['value'])).replace("\n",'').strip()
 
 def getArticleSource(article):
 	return cleanUpText(article['summary_detail']['base'])
@@ -108,7 +111,7 @@ for feed in rssFeeds:
 		link = entry['link']
 		originalTitle = cleanUpText(entry['title'])
 		
-		formattedTitle = originalTitle.replace(' ','_').replace('/','-')
+		formattedTitle = originalTitle.replace(' ','_').replace('/','-').replace("'",'')
 		
 		relFilePath = buildArticlePath(entry) + formattedTitle+".html"
 		filePath = outputDir+formattedTitle+".html"
@@ -121,6 +124,12 @@ for feed in rssFeeds:
 				# Handle error if link fails to load (404)
 				numError += 1
 				print("[ERROR] failed to download url: "+link)
+				print(e)
+				break
+			except urllib2.URLError as e:
+				numError += 1
+
+				print("[ERROR] failed to open url: "+link)
 				print(e)
 				break
 			localFile = open(filePath, 'w')

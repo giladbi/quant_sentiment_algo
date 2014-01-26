@@ -25,7 +25,7 @@ class Database:
 
 		# Use all the SQL you like
 		title = MySQLdb.escape_string(title)
-		summary = MySQLdb.escape_string(summary).replace('\n',,'').strip()
+		summary = MySQLdb.escape_string(summary)
 		query = "INSERT INTO articles (title,source,publish_date,summary,path) VALUES ('{0}','{1}','{2}','{3}','{4}')".format(title,src,date,summary,path)
 		print(query)
 		cur.execute(query)

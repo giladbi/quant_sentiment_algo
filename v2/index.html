@@ -1,0 +1,94 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>Sentiment Analysis Algo</title>
+
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+		<script type="text/javascript">
+        $.pluck = function(arr, key) { 
+            return $.map(arr, function(e) { return e[key]; }) 
+        }
+        $.cleanUpDate = function(arr) { 
+            return $.map(arr, function(e) { 
+                var timestamp = Date.parse(e.replace(' ','T'));
+                var datetime = new Date(timestamp);
+                return datetime; 
+            });
+        }
+        $.cleanNumber = function(arr) {
+            return $.map(arr, function(e){return parseInt(e)})
+        };
+        $(document).ready(function(){
+            $.getJSON('http://dev.karchevsky.info/quantAlgo/api.php', function( data ) {
+                data = data.reverse();
+
+                var ids = $.pluck(data,"id");
+                var dates = $.cleanUpDate($.pluck(data,"date"));
+
+                var inserts = $.cleanNumber($.pluck(data,"num_inserted"));
+                var errors = $.cleanNumber($.pluck(data,"num_errors"));
+                var found = $.cleanNumber($.pluck(data,"num_found"));
+
+                var startingDate = Date.UTC(dates[0].getUTCFullYear(),dates[0].getUTCMonth(),dates[0].getUTCDate(),dates[0].getUTCHours(),dates[0].getUTCMinutes());
+
+                $('#container').highcharts({
+                    title: {
+                        text: 'Number of News Articles',
+                        x: -20 //center
+                    },
+                    xAxis: {
+                        type: 'datetime',
+                        dateTimeLabelFormats: {
+                            day: '%b %e'
+                        }
+                    },
+                    yAxis: {
+                        title: {
+                            text: '# Articles'
+                        },
+                        plotLines: [{
+                            value: 0,
+                            width: 1,
+                            color: '#808080'
+                        }]
+                    },
+                    tooltip: {
+                        valueSuffix: ''
+                    },
+                    legend: {
+                        layout: 'vertical',
+                        align: 'right',
+                        verticalAlign: 'middle',
+                        borderWidth: 0
+                    },
+                    series: [{
+                        name: 'Num Inserted',
+                        data: inserts,
+
+                        pointStart: startingDate,
+                        pointInterval: 3600 * 1000 // one day
+                    },{
+                        name: 'Num Errors',
+                        data: errors,
+                        color: "#cc0000",
+                        pointStart: startingDate,
+                        pointInterval: 3600 * 1000 // one day
+                    }]
+                });
+
+            });
+            
+        });
+       
+
+		</script>
+	</head>
+	<body>
+<script src="js/highcharts.js"></script>
+<script src="js/modules/exporting.js"></script>
+
+<div id="container" style="min-width: 310px; height: 400px; margin: 0 auto"></div>
+
+	</body>
+</html>
